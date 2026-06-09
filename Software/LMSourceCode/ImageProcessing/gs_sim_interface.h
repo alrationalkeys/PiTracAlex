@@ -5,6 +5,10 @@
 
 #pragma once
 
+#include <atomic>
+#include <memory>
+#include <thread>
+
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
 
@@ -80,9 +84,17 @@ namespace golf_sim {
         // Returns true only if each of the available interfaces is armed
         static bool GetAllSystemsArmed();
 
-        // Heartbeat support for external simulators
+        // Heartbeat support for external simulators.
+        // Records the ball-detected state and immediately sends a status message.
+        // The state is then re-sent periodically by the heartbeat thread so that
+        // sims like GSPro reliably receive it (e.g., for the ball-ready indicator).
         static void SendHeartbeat(bool ball_detected);
-        static inline void ResetHeartbeatState() {}
+        static void ResetHeartbeatState();
+
+        // Periodically re-sends the current status to the connected sims.
+        // Started by InitializeSims and stopped by DeInitializeSims.
+        static void StartHeartbeatThread();
+        static void StopHeartbeatThread();
 
     protected:
 
@@ -104,6 +116,15 @@ namespace golf_sim {
         static bool sims_initialized_;
 
         static long shot_counter_;
+
+        // The most recent ball-detected state; re-sent by the heartbeat thread
+        static std::atomic<bool> heartbeat_ball_detected_state_;
+        static std::atomic<bool> heartbeat_thread_running_;
+        static std::unique_ptr<std::thread> heartbeat_thread_;
+
+        // Serializes sends to the sims between the FSM (shot results) and the
+        // heartbeat thread, which share the same sockets
+        static boost::mutex send_mutex_;
 
         // True if all THIS sim has been initialized
         bool initialized_;

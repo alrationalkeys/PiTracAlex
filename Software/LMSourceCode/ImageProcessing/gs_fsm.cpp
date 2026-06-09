@@ -185,8 +185,8 @@ namespace golf_sim {
         }
 
         if (found) {
-            // Inform connected sims that the ball is on the tee.
-            GsSimInterface::SendHeartbeat(true);
+            // Note - we don't tell the sims the ball is ready yet.  That happens
+            // once the ball has stabilized and the system is armed for the hit.
             if (GolfSimOptions::GetCommandLineOptions().system_mode_ == SystemMode::kCamera1Calibrate ||
                 GolfSimOptions::GetCommandLineOptions().system_mode_ == SystemMode::kCamera2Calibrate) {
 
@@ -388,6 +388,11 @@ namespace golf_sim {
         // Let the monitor interface know what's happening
         GsUISystem::SendIPCStatusMessage(GsIPCResultType::kBallPlacedAndReadyForHit);
 
+        // The ball is stable and the system is armed - tell the sims (e.g., for
+        // GSPro's ball-ready indicator) that it's time to swing.  The heartbeat
+        // thread will keep re-sending this state while we block waiting for the hit.
+        GsSimInterface::SendHeartbeat(true);
+
         if (!WatchForHitAndTrigger(waitingForBallHit.cam1_ball_, image, ball_hit)) {
             GS_LOG_MSG(error, "Failed to WatchForHitAndTrigger.  Restarting GolfSim FSM.");
             GolfSimEventElement restartEvent{ new GolfSimEvent::Restart{ } };
@@ -397,6 +402,9 @@ namespace golf_sim {
 
         // TBD - Consider case where we did NOT get a ball hit indication for some reason
         GS_LOG_MSG(info, "============= BALL HIT ===============\n");
+
+        // The ball is gone - withdraw the ball-ready status while we process the shot
+        GsSimInterface::SendHeartbeat(false);
 
         // Make sure we do something sensible if we don't receive an image from the camera 2
         // system in a reasonable amount of time.

@@ -3,6 +3,8 @@
  * Copyright (C) 2022-2025, Verdant Consultants, LLC.
  */
 
+#include <chrono>
+
 #include "logging_tools.h"
 #include "cv_utils.h"
 #include "gs_options.h"
@@ -26,6 +28,14 @@ namespace golf_sim {
     // The first shot number the golf simulator receives should be 1, not 0, and
     // the system will increment the counter first before storing information
     long GsSimInterface::shot_counter_ = 0;
+
+    std::atomic<bool> GsSimInterface::heartbeat_ball_detected_state_{ false };
+    std::atomic<bool> GsSimInterface::heartbeat_thread_running_{ false };
+    std::unique_ptr<std::thread> GsSimInterface::heartbeat_thread_;
+    boost::mutex GsSimInterface::send_mutex_;
+
+    // How often the current status is re-sent to the connected sims
+    static const std::chrono::milliseconds kHeartbeatIntervalMs(1000);
 
 
     GsSimInterface::GsSimInterface() {
@@ -89,6 +99,8 @@ namespace golf_sim {
 
         sims_initialized_ = true;
 
+        StartHeartbeatThread();
+
         return true;
     }
 
@@ -119,6 +131,9 @@ namespace golf_sim {
     void GsSimInterface::DeInitializeSims() {
 
         GS_LOG_TRACE_MSG(trace, "GsSimInterface::DeInitializeSims()");
+
+        // Stop the heartbeat thread before tearing down the interfaces it sends to
+        StopHeartbeatThread();
 
 #ifdef __unix__  // Ignore in Windows environment
 
@@ -182,6 +197,8 @@ namespace golf_sim {
 #ifdef __unix__  // Ignore in Windows environment
 
         // Loop through any interfaces that we are configured for and send the results
+        boost::lock_guard<boost::mutex> lock(send_mutex_);
+
         for (auto interface : interfaces_) {
             if (interface == nullptr) {
                 GS_LOG_MSG(error, "GsSimInterface::DeInitializeSims() found a null interface");
@@ -238,6 +255,9 @@ namespace golf_sim {
     }
 
     void GsSimInterface::SendHeartbeat(bool ball_detected) {
+        // Remember the state so the heartbeat thread can keep re-sending it
+        heartbeat_ball_detected_state_ = ball_detected;
+
 #ifdef __unix__  // Ignore in Windows environment
         if (!sims_initialized_) {
             return;
@@ -248,6 +268,8 @@ namespace golf_sim {
         heartbeat.heartbeat_ball_detected_ = ball_detected;
         heartbeat.heartbeat_launch_monitor_ready_ = true;
 
+        boost::lock_guard<boost::mutex> lock(send_mutex_);
+
         for (auto interface : interfaces_) {
             if (interface == nullptr) {
                 continue;
@@ -255,6 +277,46 @@ namespace golf_sim {
             interface->SendResults(heartbeat);
         }
 #endif
+    }
+
+    void GsSimInterface::ResetHeartbeatState() {
+        heartbeat_ball_detected_state_ = false;
+    }
+
+    void GsSimInterface::StartHeartbeatThread() {
+#ifdef __unix__  // Ignore in Windows environment
+        if (heartbeat_thread_running_ || interfaces_.empty()) {
+            return;
+        }
+
+        heartbeat_thread_running_ = true;
+
+        heartbeat_thread_ = std::make_unique<std::thread>([]() {
+            GS_LOG_TRACE_MSG(trace, "GsSimInterface heartbeat thread started.");
+
+            while (heartbeat_thread_running_) {
+                // Sleep in short increments so that shutdown is not delayed
+                for (int i = 0; i < 10 && heartbeat_thread_running_; i++) {
+                    std::this_thread::sleep_for(kHeartbeatIntervalMs / 10);
+                }
+
+                if (heartbeat_thread_running_) {
+                    SendHeartbeat(heartbeat_ball_detected_state_);
+                }
+            }
+
+            GS_LOG_TRACE_MSG(trace, "GsSimInterface heartbeat thread exiting.");
+        });
+#endif
+    }
+
+    void GsSimInterface::StopHeartbeatThread() {
+        heartbeat_thread_running_ = false;
+
+        if (heartbeat_thread_ != nullptr && heartbeat_thread_->joinable()) {
+            heartbeat_thread_->join();
+        }
+        heartbeat_thread_.reset();
     }
 
     bool GsSimInterface::InterfaceIsPresent() {

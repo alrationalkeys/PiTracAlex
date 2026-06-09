@@ -82,9 +82,11 @@ namespace golf_sim {
         else {
             shot_data_options_child.put("ContainsBallData", false);
             shot_data_options_child.put("ContainsClubData", false);
-            shot_data_options_child.put("LaunchMonitorIsReady", true);
+            shot_data_options_child.put("LaunchMonitorIsReady", heartbeat_launch_monitor_ready_);
             shot_data_options_child.put("LaunchMonitorBallDetected", heartbeat_ball_detected_);
-            shot_data_options_child.put("IsHeartBeat", true);
+            // GSPro has retired the IsHeartBeat flag.  Status-only messages flagged as
+            // heartbeats appear to be ignored, so send them as ordinary messages.
+            shot_data_options_child.put("IsHeartBeat", false);
         }
 
         root.add_child("BallData", ball_data_child);
