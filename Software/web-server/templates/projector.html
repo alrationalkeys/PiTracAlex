@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PiTrac Projector</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #fff;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    /* The warped surface that gets corner-pinned onto the mat */
+    #surface {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1000px;
+        height: 1000px;
+        transform-origin: 0 0;
+    }
+
+    #state-banner {
+        position: absolute;
+        top: 2%;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 90px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-shadow: 0 0 18px rgba(0,0,0,0.9);
+    }
+
+    .zone {
+        position: absolute;
+        border: 6px solid rgba(255,255,255,0.25);
+        border-radius: 24px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-bottom: 12px;
+        font-size: 44px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.45);
+        transition: border-color 0.3s, color 0.3s, background 0.3s, box-shadow 0.3s;
+        cursor: pointer;
+    }
+    .zone.active {
+        border-color: var(--state-color, #ffaa00);
+        color: #fff;
+        background: color-mix(in srgb, var(--state-color, #ffaa00) 18%, transparent);
+        box-shadow: 0 0 60px var(--state-color, #ffaa00) inset;
+    }
+
+    /* State colors are applied via the --state-color variable */
+    body[data-state="waiting"]     { --state-color: #ff3b30; }
+    body[data-state="stabilizing"] { --state-color: #ff9500; }
+    body[data-state="ready"]       { --state-color: #34c759; }
+    body[data-state="hit"]         { --state-color: #ffffff; }
+
+    #state-banner { color: var(--state-color, #888); }
+
+    /* ----- Edit mode ----- */
+    #edit-toolbar {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 50;
+        display: flex;
+        gap: 8px;
+        opacity: 0.25;
+        transition: opacity 0.2s;
+    }
+    #edit-toolbar:hover { opacity: 1; }
+    #edit-toolbar button, #edit-toolbar a {
+        background: #222;
+        color: #eee;
+        border: 1px solid #555;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .corner-handle {
+        position: fixed;
+        width: 36px;
+        height: 36px;
+        margin: -18px 0 0 -18px;
+        border-radius: 50%;
+        background: rgba(0, 150, 255, 0.8);
+        border: 3px solid #fff;
+        z-index: 40;
+        cursor: grab;
+        display: none;
+    }
+    body.editing .corner-handle { display: block; }
+
+    .zone-resize {
+        position: absolute;
+        right: -14px;
+        bottom: -14px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 200, 0, 0.85);
+        border: 3px solid #fff;
+        cursor: nwse-resize;
+        display: none;
+    }
+    body.editing .zone-resize { display: block; }
+    body.editing .zone { cursor: move; }
+</style>
+</head>
+<body data-state="waiting">
+
+    <div id="surface">
+        <div id="state-banner">PITRAC</div>
+        <!-- Zones are created by projector.js from /api/projector/config -->
+    </div>
+
+    <div id="edit-toolbar">
+        <button id="btn-edit" onclick="toggleEdit()">Edit layout</button>
+        <button id="btn-save" onclick="saveConfig()" style="display:none">Save</button>
+        <a href="/">Dashboard</a>
+    </div>
+
+    <div class="corner-handle" id="corner-0"></div>
+    <div class="corner-handle" id="corner-1"></div>
+    <div class="corner-handle" id="corner-2"></div>
+    <div class="corner-handle" id="corner-3"></div>
+
+<script src="/static/js/projector.js"></script>
+</body>
+</html>

@@ -22,6 +22,11 @@
             <span class="status-strip-message" id="status-strip-message">Initializing...</span>
         </div>
         <div class="shrink-0 flex items-center gap-2">
+            <div class="join" id="club-selector" title="Club type - sets the strobe timing used for the shot">
+                <button class="btn btn-xs join-item club-btn" data-club="driver" onclick="selectClub('driver')">Driver/Long</button>
+                <button class="btn btn-xs join-item club-btn" data-club="iron" onclick="selectClub('iron')">Irons/Wedges</button>
+                <button class="btn btn-xs join-item club-btn" data-club="putter" onclick="selectClub('putter')">Putter</button>
+            </div>
             <button class="btn btn-ghost btn-xs uppercase tracking-wide font-semibold border border-base-300"
                     id="btn-reset" onclick="resetShot()" style="display: none;">Reset</button>
         </div>

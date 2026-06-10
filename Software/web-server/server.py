@@ -42,6 +42,25 @@ RPICAM_TUNING_FILE = "/usr/share/libcamera/ipa/rpi/pisp/imx296_noir.json"
 RPICAM_CAL_SHUTTER_US = 11000
 RPICAM_CAL_GAIN = 1.3
 
+# Club selection shared with the C++ LM process (which polls this file while
+# waiting for a ball, and re-writes it when the club changes via GSPro)
+CLUB_SELECTION_FILE = Path.home() / ".pitrac" / "config" / "club_selection.txt"
+VALID_CLUBS = ("putter", "iron", "driver")
+
+# Projector/placement-zone display configuration
+PROJECTOR_CONFIG_FILE = Path.home() / ".pitrac" / "config" / "projector_config.json"
+DEFAULT_PROJECTOR_CONFIG: Dict[str, Any] = {
+    # Corner-pin destination points (normalized viewport coordinates) used to
+    # warp the projected surface onto the mat: TL, TR, BR, BL
+    "corners": [[0.05, 0.05], [0.95, 0.05], [0.95, 0.95], [0.05, 0.95]],
+    # Ball placement zones in normalized surface coordinates
+    "zones": [
+        {"club": "driver", "label": "Driver / Long", "x": 0.05, "y": 0.15, "w": 0.28, "h": 0.7},
+        {"club": "iron", "label": "Irons / Wedges", "x": 0.37, "y": 0.15, "w": 0.28, "h": 0.7},
+        {"club": "putter", "label": "Putter", "x": 0.69, "y": 0.15, "w": 0.28, "h": 0.7},
+    ],
+}
+
 
 class RpicamVideoStream:
     """cv2.VideoCapture-compatible wrapper around rpicam-vid for Pi CSI cameras."""
@@ -251,6 +270,59 @@ class PiTracServer:
             await self.connection_manager.broadcast(shot_data.to_dict())
             logger.info("Shot data reset via API")
             return {"status": "reset", "timestamp": shot_data.timestamp}
+
+        @self.app.get("/api/club")
+        async def get_club() -> Dict[str, str]:
+            club = "driver"
+            try:
+                if CLUB_SELECTION_FILE.exists():
+                    value = CLUB_SELECTION_FILE.read_text().strip().lower()
+                    if value in VALID_CLUBS:
+                        club = value
+            except Exception as e:
+                logger.warning(f"Could not read club selection file: {e}")
+            return {"club": club}
+
+        @self.app.post("/api/club")
+        async def set_club(request: Request):
+            body = await request.json()
+            club = str(body.get("club", "")).strip().lower()
+            if club not in VALID_CLUBS:
+                return JSONResponse(status_code=400, content={"error": f"Invalid club: {club}"})
+            try:
+                CLUB_SELECTION_FILE.parent.mkdir(parents=True, exist_ok=True)
+                CLUB_SELECTION_FILE.write_text(club)
+            except Exception as e:
+                logger.error(f"Could not write club selection file: {e}")
+                return JSONResponse(status_code=500, content={"error": str(e)})
+            logger.info(f"Club selection set to {club}")
+            return {"club": club}
+
+        @self.app.get("/projector", response_class=HTMLResponse)
+        async def projector_page(request: Request) -> Response:
+            return self.templates.TemplateResponse(request, "projector.html", context={})
+
+        @self.app.get("/api/projector/config")
+        async def get_projector_config() -> Dict[str, Any]:
+            try:
+                if PROJECTOR_CONFIG_FILE.exists():
+                    return json.loads(PROJECTOR_CONFIG_FILE.read_text())
+            except Exception as e:
+                logger.warning(f"Could not read projector config, using defaults: {e}")
+            return DEFAULT_PROJECTOR_CONFIG
+
+        @self.app.post("/api/projector/config")
+        async def set_projector_config(request: Request):
+            body = await request.json()
+            if "corners" not in body or "zones" not in body:
+                return JSONResponse(status_code=400, content={"error": "config requires 'corners' and 'zones'"})
+            try:
+                PROJECTOR_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                PROJECTOR_CONFIG_FILE.write_text(json.dumps(body, indent=2))
+            except Exception as e:
+                logger.error(f"Could not write projector config: {e}")
+                return JSONResponse(status_code=500, content={"error": str(e)})
+            return {"status": "ok"}
 
         @self.app.post("/api/internal/shot-result")
         async def receive_shot_result(request: Request) -> Dict[str, str]:

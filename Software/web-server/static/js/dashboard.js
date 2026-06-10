@@ -228,3 +228,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Club selection - mirrors ~/.pitrac/config/club_selection.txt, which the
+// running PiTrac process polls (and re-writes when GSPro changes the club)
+
+let currentClub = null;
+
+function renderClubButtons(club) {
+    currentClub = club;
+    document.querySelectorAll('#club-selector .club-btn').forEach(btn => {
+        if (btn.dataset.club === club) {
+            btn.classList.add('btn-primary');
+        } else {
+            btn.classList.remove('btn-primary');
+        }
+    });
+}
+
+async function selectClub(club) {
+    try {
+        const resp = await fetch('/api/club', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ club: club }),
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            renderClubButtons(data.club);
+        }
+    } catch (e) {
+        console.error('Could not set club:', e);
+    }
+}
+
+async function refreshClub() {
+    try {
+        const resp = await fetch('/api/club');
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.club !== currentClub) {
+                renderClubButtons(data.club);
+            }
+        }
+    } catch (e) {
+        // Quietly ignore - will retry on the next poll
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    refreshClub();
+    // Poll so club changes made in GSPro (or another browser) show up here
+    setInterval(refreshClub, 3000);
+});
