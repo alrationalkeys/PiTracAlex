@@ -66,14 +66,24 @@ namespace golf_sim {
             GS_LOG_MSG(warning, "GsGSProResponse::ParseJson received unknown player handedness value from GSPro response:" + handedness_str);
         }
 
-        if (club_str == "DR") {
-            player_club_ = PlayerClub::kDriver;
-        }
-        else if (club_str == "PT") {
+        if (club_str == "PT") {
             player_club_ = PlayerClub::kPutter;
         }
+        else if (club_str == "I8" || club_str == "I9" ||
+                 club_str == "PW" || club_str == "GW" || club_str == "AW" ||
+                 club_str == "SW" || club_str == "LW") {
+            // High-lofted clubs - the slower, higher-launching ball allows
+            // wider strobe pulse spacing
+            player_club_ = PlayerClub::kIronOrWedge;
+        }
+        else if (club_str == "") {
+            GS_LOG_MSG(warning, "GsGSProResponse::ParseJson received no player club value from GSPro response. Defaulting to Driver");
+            player_club_ = PlayerClub::kDriver;
+        }
         else {
-            GS_LOG_MSG(warning, "GsGSProResponse::ParseJson received unknown player club value from GSPro response:" + club_str + ". Defaulting to Driver");
+            // Everything else (driver, woods, hybrids, long/mid irons) is
+            // treated as a fast, low-launch club
+            GS_LOG_MSG(info, "GsGSProResponse::ParseJson treating club '" + club_str + "' as a low-lofted (driver-type) club.");
             player_club_ = PlayerClub::kDriver;
         }
 
@@ -117,7 +127,13 @@ namespace golf_sim {
         std::string s;
 
         std::string handed_str = (player_handed_ == PlayerHandedness::kLeftHanded) ? "LH" : "RH";
-        std::string club_str = (player_club_ == PlayerClub::kDriver) ? "Driver" : "Putter";
+        std::string club_str = "Driver";
+        if (player_club_ == PlayerClub::kPutter) {
+            club_str = "Putter";
+        }
+        else if (player_club_ == PlayerClub::kIronOrWedge) {
+            club_str = "Iron/Wedge";
+        }
 
         s += "Return Code: " + std::to_string(return_code_) + ".";
         s += " Message: " + message_ + "\n";

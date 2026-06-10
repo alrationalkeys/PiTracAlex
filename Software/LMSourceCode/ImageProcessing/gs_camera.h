@@ -253,6 +253,17 @@ namespace golf_sim {
         // Also sets the rotation_results into the ball object
         static void CalculateBallSpinRates(GolfBall& b, const cv::Vec3d& rotation_results, long time_delay_us);
 
+        // Diagnostics from the most recent strobed-ball analysis.  Used after
+        // the analysis to judge whether the result is trustworthy enough to
+        // send to a connected golf simulator.
+        // The match score is the (squared-difference) score of the best
+        // imprint-to-strobe-interval pattern match.  Lower is better.
+        // A value < 0 means no pattern match was performed.
+        static double last_strobe_match_score_;
+        static int last_strobe_ball_count_;
+        // True if the timing was a fallback guess based on only two ball images
+        static bool last_result_was_two_ball_guess_;
+
         // Analyze an image with two or more strobed shots of a ball in flight.
         // TBD - Work in progress
         bool AnalyzeStrobedBalls(const cv::Mat& strobed_balls_color_image,

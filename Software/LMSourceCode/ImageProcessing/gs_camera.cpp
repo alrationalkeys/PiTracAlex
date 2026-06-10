@@ -36,6 +36,10 @@ namespace golf_sim {
     double GolfSimCamera::kBallProximityMarginPercentRelaxed = 50.;
     double GolfSimCamera::kBallProximityMarginPercentStrict = 5.;
 
+    double GolfSimCamera::last_strobe_match_score_ = -1.0;
+    int GolfSimCamera::last_strobe_ball_count_ = 0;
+    bool GolfSimCamera::last_result_was_two_ball_guess_ = false;
+
     // These constants may be used before this class's constructor is called.
     // For that reason, they are initialized in the GsConfiguration startup
     cv::Vec3d GolfSimCamera::kCamera1PositionsFromExpectedBallMeters;
@@ -3775,6 +3779,11 @@ namespace golf_sim {
             GS_LOG_TRACE_MSG(trace, "GolfSimCamera::DetermineStrobeInterval");
             LoggingTools::Trace("   Return_balls: ", input_balls);
 
+            // Reset the analysis-confidence diagnostics for this shot
+            last_strobe_match_score_ = -1.0;
+            last_strobe_ball_count_ = (int)input_balls.size();
+            last_result_was_two_ball_guess_ = false;
+
             // These are the distances (in pixels) and ratios for the strobed ball images
             std::vector<double> distances;
             std::vector<double> distance_ratios;
@@ -3980,6 +3989,10 @@ namespace golf_sim {
                 // In the unlikely event we didn't find ANY best interval, just default it to the first interval (index 0)
                 best_intervals_pattern_index = std::max(0, best_intervals_pattern_index);
 
+                // Record how well the best hypothesis actually fit, for later
+                // shot-confidence checks
+                last_strobe_match_score_ = best_ratio_distance;
+
                 GS_LOG_TRACE_MSG(trace, "------------> Best-fitting pulse vector was number: " + std::to_string(best_intervals_pattern_index) + ".  With score of: " +
                     std::to_string(best_ratio_distance) + ".  Vector was : ");
                 PrintPulseVector(candidate_intervals_to_collapse_patterns_vector[best_intervals_pattern_index]);
@@ -4064,8 +4077,11 @@ namespace golf_sim {
 
             }
             else {
-                // We only found two balls, which means we only have one distance and no distance ratios, 
+                // We only found two balls, which means we only have one distance and no distance ratios,
                 // so we can't do any fancy pattern matching.
+
+                // Flag the result as a guess so it can be treated with suspicion downstream
+                last_result_was_two_ball_guess_ = true;
 
                 // In this case, we will just make a guess based on whether we think the two balls we 
                 // found are the FIRST two exposures (which would be more likely for a fast driver shot 

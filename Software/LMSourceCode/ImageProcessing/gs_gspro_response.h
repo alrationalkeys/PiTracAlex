@@ -27,7 +27,9 @@ namespace golf_sim {
 
         enum PlayerClub {
             kDriver = 0,
-            kPutter = 1
+            kPutter = 1,
+            // High-lofted clubs (short irons and wedges)
+            kIronOrWedge = 2
         };
 
     public:

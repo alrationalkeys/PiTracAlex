@@ -95,6 +95,10 @@ namespace golf_sim {
 		// Pulse intervals must be > 0.0 for all but the last pulse
 		static std::vector<float> pulse_intervals_fast_ms_;
 		static std::vector<float> pulse_intervals_slow_ms_;
+		// Wider-spaced intervals used for high-lofted clubs (short irons and
+		// wedges), whose slower ball stays in the camera 2 view long enough
+		// to allow more separation between the strobed ball images.
+		static std::vector<float> pulse_intervals_lofted_ms_;
 		static std::vector<float> pulse_intervals_tail_repeat_ms_;
 
 		static int number_bits_for_fast_on_pulse_;
@@ -103,9 +107,11 @@ namespace golf_sim {
 		// This is the buffer that will be written out (bit-banged) to the SPI channel
 		static char* camera_slow_pulse_sequence_;
 		static char* camera_fast_pulse_sequence_;
+		static char* camera_lofted_pulse_sequence_;
 		static char* no_pulse_camera_sequence_;  // Will be all 0's, but the same length as the 'real' pulse sequence
 		static unsigned long camera_fast_pulse_sequence_length_;
 		static unsigned long camera_slow_pulse_sequence_length_;
+		static unsigned long camera_lofted_pulse_sequence_length_;
 
 		static char* tail_repeat_pulse_sequence_;
 		static unsigned long tail_repeat_sequence_length_;

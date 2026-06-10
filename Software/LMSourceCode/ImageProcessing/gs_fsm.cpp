@@ -170,6 +170,10 @@ namespace golf_sim {
             GsSimInterface::SendHeartbeat(false);
         }
 
+        // Pick up any club change made from the web dashboard.  Cheap (a file
+        // mtime check) and this loop runs at a human time-scale.
+        GolfSimClubs::CheckForClubSelectionFileChange();
+
         // This check will be called repeatedly by re-queuing events.
         // That way, we can process other, asynchronous, events like button presses and such as we
         // continue to wait to see a ball.
@@ -476,6 +480,50 @@ namespace golf_sim {
             GS_LOG_TRACE_MSG(trace, "Received and processed cam2ImageReceived.  Now sending Results to any connected Golf Simulator");
             GsResults results(result_ball);
 
+            // Judge whether this result is trustworthy enough to send to the
+            // simulator.  A poor strobe-pattern match or a two-ball timing
+            // guess produces wildly wrong speed/spin, and it is better to ask
+            // the golfer to hit again than to report a bogus shot.
+            bool kEnableMisreadDetection = true;
+            double kMisreadMaxPatternMatchScore = 10000.0;
+            double kMisreadMinBallSpeedMPH = 5.0;
+            bool kMisreadAllowTwoBallShots = false;
+
+            if (GolfSimConfiguration::PropertyExists("gs_config.shot_validation.kEnableMisreadDetection")) {
+                GolfSimConfiguration::SetConstant("gs_config.shot_validation.kEnableMisreadDetection", kEnableMisreadDetection);
+            }
+            if (GolfSimConfiguration::PropertyExists("gs_config.shot_validation.kMisreadMaxPatternMatchScore")) {
+                GolfSimConfiguration::SetConstant("gs_config.shot_validation.kMisreadMaxPatternMatchScore", kMisreadMaxPatternMatchScore);
+            }
+            if (GolfSimConfiguration::PropertyExists("gs_config.shot_validation.kMisreadMinBallSpeedMPH")) {
+                GolfSimConfiguration::SetConstant("gs_config.shot_validation.kMisreadMinBallSpeedMPH", kMisreadMinBallSpeedMPH);
+            }
+            if (GolfSimConfiguration::PropertyExists("gs_config.shot_validation.kMisreadAllowTwoBallShots")) {
+                GolfSimConfiguration::SetConstant("gs_config.shot_validation.kMisreadAllowTwoBallShots", kMisreadAllowTwoBallShots);
+            }
+
+            std::string misread_reason;
+
+            if (kEnableMisreadDetection &&
+                GolfSimClubs::GetCurrentClubType() != GolfSimClubs::GsClubType::kPutter) {
+
+                if (!kMisreadAllowTwoBallShots && GolfSimCamera::last_result_was_two_ball_guess_) {
+                    misread_reason = "only two ball images were found, so the shot timing would be a guess";
+                }
+                else if (GolfSimCamera::last_strobe_match_score_ > kMisreadMaxPatternMatchScore) {
+                    misread_reason = "the ball images did not match the strobe pattern well (score " +
+                        std::to_string((long)GolfSimCamera::last_strobe_match_score_) + ")";
+                }
+                else if (results.speed_mph_ < kMisreadMinBallSpeedMPH) {
+                    misread_reason = "the measured ball speed was implausibly low";
+                }
+            }
+
+            if (!misread_reason.empty()) {
+                GS_LOG_MSG(warning, "Shot rejected as a likely misread: " + misread_reason);
+                GsUISystem::SendIPCErrorStatusMessage("Misread - " + misread_reason + ".  Please hit again.");
+            }
+            else {
 
             // Get the result to the golf simulator ASAP
             if (!GsSimInterface::SendResultsToGolfSims(results)) {
@@ -491,6 +539,7 @@ namespace golf_sim {
             s = " Time between chosen images for velocity calculation: " + velocity_time_period_string + " ms.";
 
             GsUISystem::SendIPCHitMessage(result_ball, s);
+            }
 
 #ifdef __unix__ 
             if (exposures_image.empty()) {
@@ -640,6 +689,9 @@ namespace golf_sim {
         }
         else if (message_type == GsIPCControlMsgType::kClubChangeToDriver) {
             GolfSimClubs::SetCurrentClubType(GolfSimClubs::GsClubType::kDriver);
+        }
+        else if (message_type == GsIPCControlMsgType::kClubChangeToIron) {
+            GolfSimClubs::SetCurrentClubType(GolfSimClubs::GsClubType::kIron);
         }
         else {
             GS_LOG_MSG(error, "Received ControlMessage event with unknown message type.");

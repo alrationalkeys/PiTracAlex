@@ -38,6 +38,8 @@ namespace golf_sim {
 	std::vector<float>  PulseStrobe::pulse_intervals_slow_ms_;
 	int PulseStrobe::number_bits_for_slow_on_pulse_ = 0;
 
+	std::vector<float>  PulseStrobe::pulse_intervals_lofted_ms_;
+
 	// Currently true for both Pi and InnoMaker cameras
 	// Should be set false if we are using the OG V1 Connector board,
 	// because that board would invert the external shutter signal (XTR)
@@ -50,11 +52,13 @@ namespace golf_sim {
 
 	char* PulseStrobe::camera_slow_pulse_sequence_ = nullptr;
 	char* PulseStrobe::camera_fast_pulse_sequence_ = nullptr;
+	char* PulseStrobe::camera_lofted_pulse_sequence_ = nullptr;
 	char* PulseStrobe::no_pulse_camera_sequence_ = nullptr;
 	char* PulseStrobe::tail_repeat_pulse_sequence_ = nullptr;
 
 	unsigned long PulseStrobe::camera_fast_pulse_sequence_length_ = 0;
 	unsigned long PulseStrobe::camera_slow_pulse_sequence_length_ = 0;
+	unsigned long PulseStrobe::camera_lofted_pulse_sequence_length_ = 0;
 	unsigned long PulseStrobe::tail_repeat_sequence_length_ = 0;
 
 	int PulseStrobe::spiHandle_ = -1;
@@ -365,6 +369,12 @@ namespace golf_sim {
 				buf = camera_slow_pulse_sequence_;
 				result_length = camera_slow_pulse_sequence_length_;
 			}
+			else if (GolfSimClubs::GetCurrentClubType() == GolfSimClubs::GsClubType::kIron &&
+					 camera_lofted_pulse_sequence_ != nullptr &&
+					 camera_lofted_pulse_sequence_length_ > 0) {
+				buf = camera_lofted_pulse_sequence_;
+				result_length = camera_lofted_pulse_sequence_length_;
+			}
 			else {
 				buf = camera_fast_pulse_sequence_;
 				result_length = camera_fast_pulse_sequence_length_;
@@ -528,6 +538,17 @@ namespace golf_sim {
 		GolfSimConfiguration::SetConstant("gs_config.strobing.kStrobePulseVectorPutter", pulse_intervals_slow_ms_);
 		GolfSimConfiguration::SetConstant("gs_config.strobing.kDynamicFollowOnPulseVectorPutter", pulse_intervals_tail_repeat_ms_);
 
+		// The wider-spaced vector for high-lofted clubs (short irons/wedges).
+		// The historic config key name is kept for backward compatibility.
+		// If it is not configured, lofted clubs just use the same vector as
+		// everything else.
+		if (GolfSimConfiguration::PropertyExists("gs_config.strobing.kLongerStrobePulseVectorDriver")) {
+			GolfSimConfiguration::SetConstant("gs_config.strobing.kLongerStrobePulseVectorDriver", pulse_intervals_lofted_ms_);
+		}
+		if (pulse_intervals_lofted_ms_.empty()) {
+			pulse_intervals_lofted_ms_ = pulse_intervals_fast_ms_;
+		}
+
 		// We generally want longer pulses in the optically-noisy comparison environment
 		if (GolfSimOptions::GetCommandLineOptions().lm_comparison_mode_) {
 			GolfSimConfiguration::SetConstant("gs_config.testing.kExternallyStrobedEnvNumber_bits_for_fast_on_pulse_", number_bits_for_fast_on_pulse_);
@@ -550,6 +571,9 @@ namespace golf_sim {
 		GS_LOG_TRACE_MSG(trace, "Building Slow pulse sequence.");
 		camera_slow_pulse_sequence_ = PulseStrobe::BuildPulseTrain((unsigned long)kBaudRateForSlowPulses, pulse_intervals_slow_ms_, number_bits_for_slow_on_pulse_,
 														kBitsPerWord, camera_slow_pulse_sequence_length_, false);
+		GS_LOG_TRACE_MSG(trace, "Building Lofted-club pulse sequence.");
+		camera_lofted_pulse_sequence_ = PulseStrobe::BuildPulseTrain((unsigned long)kBaudRateForFastPulses, pulse_intervals_lofted_ms_, number_bits_for_fast_on_pulse_,
+														kBitsPerWord, camera_lofted_pulse_sequence_length_, false);
 		GS_LOG_TRACE_MSG(trace, "Building follow-on pulse sequence.");
 		tail_repeat_pulse_sequence_ = PulseStrobe::BuildPulseTrain((unsigned long)kBaudRateForSlowPulses, pulse_intervals_tail_repeat_ms_, number_bits_for_slow_on_pulse_,
 			kBitsPerWord, tail_repeat_sequence_length_, false);
@@ -742,6 +766,10 @@ namespace golf_sim {
 
 		if (GolfSimClubs::GetCurrentClubType() == GolfSimClubs::GsClubType::kPutter) {
 			intervals = pulse_intervals_slow_ms_;
+		}
+		else if (GolfSimClubs::GetCurrentClubType() == GolfSimClubs::GsClubType::kIron &&
+				 !pulse_intervals_lofted_ms_.empty()) {
+			intervals = pulse_intervals_lofted_ms_;
 		}
 		else {
 			intervals = pulse_intervals_fast_ms_;

@@ -201,6 +201,9 @@ namespace golf_sim {
             if (gspro_response.player_club_ == GsGSProResponse::PlayerClub::kPutter) {
                 club_instruction = GsIPCControlMsgType::kClubChangeToPutter;
             }
+            else if (gspro_response.player_club_ == GsGSProResponse::PlayerClub::kIronOrWedge) {
+                club_instruction = GsIPCControlMsgType::kClubChangeToIron;
+            }
             else if (gspro_response.player_club_ == GsGSProResponse::PlayerClub::kDriver) {
                 club_instruction = GsIPCControlMsgType::kClubChangeToDriver;
             }

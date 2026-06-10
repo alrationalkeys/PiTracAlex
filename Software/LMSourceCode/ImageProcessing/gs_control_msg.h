@@ -26,10 +26,12 @@
 namespace golf_sim {
 
     // TBD - Add a change-player type?
-    enum class GsIPCControlMsgType { 
-        kUnknown = 0, 
+    enum class GsIPCControlMsgType {
+        kUnknown = 0,
         kClubChangeToPutter = 1,
         kClubChangeToDriver = 2,
+        // Short irons and wedges - high-launch clubs that can use wider strobe spacing
+        kClubChangeToIron = 3,
     };
 
     class GsIPCControlMsg {

@@ -26,7 +26,8 @@ namespace golf_sim {
         std::map<GsIPCControlMsgType, std::string> result_table =
         { {   GsIPCControlMsgType::kUnknown, "Unknown" },
             { GsIPCControlMsgType::kClubChangeToPutter, "Change club to putter" },
-            { GsIPCControlMsgType::kClubChangeToDriver, "Change club to driver" }
+            { GsIPCControlMsgType::kClubChangeToDriver, "Change club to driver" },
+            { GsIPCControlMsgType::kClubChangeToIron, "Change club to iron/wedge" }
         };
 
         if (result_table.count(t) == 0) {
