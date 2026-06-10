@@ -410,7 +410,7 @@ namespace golf_sim {
 
             if (focal_length < 0.0) {
 
-		        number_failures++;	
+		        number_failures++;
 
 	   	        if (number_failures > kNumberOfCalibrationFailuresToTolerate) {
                 	GS_LOG_MSG(error, "Could not DetermineFocalLengthForAutoCalibration -- Too many failures - giving up.  Check the input pictures for more information.");
@@ -419,6 +419,9 @@ namespace golf_sim {
 		        else {
                 	GS_LOG_MSG(warning, "Could not DetermineFocalLengthForAutoCalibration -- trying again.");
                     i--;
+                    // Do NOT let the failed sample (-1 sentinel) fall through into the
+                    // average below - that would corrupt the computed focal length.
+                    continue;
 		        }
             }
 
