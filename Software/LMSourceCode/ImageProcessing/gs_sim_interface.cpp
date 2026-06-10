@@ -271,7 +271,10 @@ namespace golf_sim {
         GsResults heartbeat;
         heartbeat.result_message_is_keepalive_ = true;
         heartbeat.heartbeat_ball_detected_ = heartbeat_ball_detected_state_;
-        heartbeat.heartbeat_launch_monitor_ready_ = true;
+        // Report ready only while a ball is teed and the system is armed for the
+        // hit.  GSPro's ball-ready arrows key off this flag, and a constant
+        // 'true' would leave them green forever.
+        heartbeat.heartbeat_launch_monitor_ready_ = heartbeat_ball_detected_state_;
 
         boost::lock_guard<boost::mutex> lock(send_mutex_);
 
