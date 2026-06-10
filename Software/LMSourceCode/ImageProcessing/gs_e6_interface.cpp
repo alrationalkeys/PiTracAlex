@@ -146,6 +146,11 @@ namespace golf_sim {
         }
 
         if (receive_thread_exited_) {
+            // Keepalive/status messages may only trigger occasional reconnection attempts
+            if (input_results.result_message_is_keepalive_ && !KeepaliveReconnectDue()) {
+                return false;
+            }
+
             // If we ended the recieve thread, try re-initializing the connection
 
             GS_LOG_MSG(error, "GsGSProInterface::SendResults called before the interface was intialized.");

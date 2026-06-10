@@ -77,6 +77,11 @@ namespace golf_sim {
 
             boost::asio::connect(*socket_, endpoints);
 
+            // Clear the exited flag before the thread runs so that a send
+            // immediately after Initialize() does not see a stale 'exited'
+            // state and trigger a pointless re-initialization.
+            receive_thread_exited_ = false;
+
             receiver_thread_ = std::unique_ptr<std::thread>(new std::thread(&GsSimSocketInterface::ReceiveSocketData, this));
 
             // GS_LOG_TRACE_MSG(trace, "Thread was created.  Thread id: " + std::string(receiver_thread_.get()->get_id()) );
@@ -96,11 +101,10 @@ namespace golf_sim {
 
         initialized_ = true;
 
-        // Connection just came up – make sure the first heartbeat reports no ball detected.
-        GsSimInterface::ResetHeartbeatState();
-        GsSimInterface::SendHeartbeat(false);
-
-        // Derived classes will need to deal with any initial messaging after the socket is established.
+        // The connection just came up; the heartbeat thread will report the
+        // current status within a second.  NOTE - do NOT send anything from
+        // here: Initialize() can be called from within a send (re-connection),
+        // and a nested send would self-deadlock on the send mutex.
 
         return true;
     }
@@ -230,6 +234,18 @@ namespace golf_sim {
     }
 
 
+    bool GsSimSocketInterface::KeepaliveReconnectDue() {
+        const auto kMinTimeBetweenKeepaliveReconnects = std::chrono::seconds(10);
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_keepalive_reconnect_attempt_ < kMinTimeBetweenKeepaliveReconnects) {
+            return false;
+        }
+
+        last_keepalive_reconnect_attempt_ = now;
+        return true;
+    }
+
     bool GsSimSocketInterface::SendResults(const GsResults& results) {
 
         if (!initialized_) {
@@ -238,6 +254,12 @@ namespace golf_sim {
         }
 
         if (receive_thread_exited_) {
+            // Don't let frequent keepalive/status messages thrash reconnection
+            // attempts - only retry occasionally for those.
+            if (results.result_message_is_keepalive_ && !KeepaliveReconnectDue()) {
+                return false;
+            }
+
             GS_LOG_MSG(error, "GsSimSocketInterface::SendResults called before the interface was intialized - trying to re-initialize.");
             // If we ended the receive thread, try re-initializing the connection
             DeInitialize();

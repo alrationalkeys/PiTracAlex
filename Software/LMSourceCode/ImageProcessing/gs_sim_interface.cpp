@@ -255,9 +255,14 @@ namespace golf_sim {
     }
 
     void GsSimInterface::SendHeartbeat(bool ball_detected) {
-        // Remember the state so the heartbeat thread can keep re-sending it
+        // Just record the state.  The heartbeat thread performs the actual
+        // network send, so that callers (especially the FSM right before it
+        // starts watching for the ball hit) can never block on socket I/O or
+        // on connection retries.
         heartbeat_ball_detected_state_ = ball_detected;
+    }
 
+    void GsSimInterface::SendHeartbeatMessage() {
 #ifdef __unix__  // Ignore in Windows environment
         if (!sims_initialized_) {
             return;
@@ -265,7 +270,7 @@ namespace golf_sim {
 
         GsResults heartbeat;
         heartbeat.result_message_is_keepalive_ = true;
-        heartbeat.heartbeat_ball_detected_ = ball_detected;
+        heartbeat.heartbeat_ball_detected_ = heartbeat_ball_detected_state_;
         heartbeat.heartbeat_launch_monitor_ready_ = true;
 
         boost::lock_guard<boost::mutex> lock(send_mutex_);
@@ -301,7 +306,7 @@ namespace golf_sim {
                 }
 
                 if (heartbeat_thread_running_) {
-                    SendHeartbeat(heartbeat_ball_detected_state_);
+                    SendHeartbeatMessage();
                 }
             }
 

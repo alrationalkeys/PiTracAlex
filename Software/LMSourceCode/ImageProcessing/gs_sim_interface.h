@@ -85,9 +85,9 @@ namespace golf_sim {
         static bool GetAllSystemsArmed();
 
         // Heartbeat support for external simulators.
-        // Records the ball-detected state and immediately sends a status message.
-        // The state is then re-sent periodically by the heartbeat thread so that
-        // sims like GSPro reliably receive it (e.g., for the ball-ready indicator).
+        // Records the ball-detected state; the heartbeat thread sends it to the
+        // sims about once a second (e.g., for GSPro's ball-ready indicator).
+        // Never blocks, so it is safe to call from the FSM at any point.
         static void SendHeartbeat(bool ball_detected);
         static void ResetHeartbeatState();
 
@@ -97,6 +97,10 @@ namespace golf_sim {
         static void StopHeartbeatThread();
 
     protected:
+
+        // Builds and sends the current status to all sims.  Called only from
+        // the heartbeat thread.
+        static void SendHeartbeatMessage();
 
         // Typical derived-class behavior will be to convert the results into a
         // sim-specific data packet, such as a JSON string
